@@ -216,6 +216,39 @@ static glui32 msc_random()
 
 #endif /* OS_WINDOWS */
 
+#ifdef OS_MEGA65
+
+#include <stdlib.h>
+
+/* size_t is 16 bits here, so a larger request must fail rather than
+   be silently truncated. Glulx main memory is not allocated through
+   these; it is in attic RAM. */
+
+/* Allocate a chunk of memory. */
+void *glulx_malloc(glui32 len)
+{
+  if (len > 0xFFFFUL)
+    return NULL;
+  return malloc((size_t)len);
+}
+
+/* Resize a chunk of memory. This must follow ANSI rules: if the
+   size-change fails, this must return NULL, but the original chunk
+   must remain unchanged. */
+void *glulx_realloc(void *ptr, glui32 len)
+{
+  if (len > 0xFFFFUL)
+    return NULL;
+  return realloc(ptr, (size_t)len);
+}
+
+/* Deallocate a chunk of memory. */
+void glulx_free(void *ptr)
+{
+  free(ptr);
+}
+
+#endif /* OS_MEGA65 */
 
 /* If no native RNG is defined above, use the xoshiro128** implementation. */
 #ifndef RAND_SET_SEED

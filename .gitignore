@@ -1,3 +1,5 @@
 # The reference implementation (for comparison only)
 glulxe/
 
+# Build output
+build/

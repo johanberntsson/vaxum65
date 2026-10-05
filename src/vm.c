@@ -7,7 +7,9 @@
 #include "glulxe.h"
 
 /* The memory blocks which contain VM main memory and the stack. */
+#ifndef OS_MEGA65
 unsigned char *memmap = NULL;
+#endif /* OS_MEGA65 */
 unsigned char *stack = NULL;
 
 /* Various memory addresses which are useful. These are loaded in from
@@ -54,8 +56,13 @@ void setup_vm()
   stream_char_handler = NULL;
   stream_unichar_handler = NULL;
 
+#ifdef OS_MEGA65
+  game_image_read(8, buf, 4 * 7);
+  res = 4 * 7;
+#else /* OS_MEGA65 */
   glk_stream_set_position(gamefile, gamefile_start+8, seekmode_Start);
   res = glk_get_buffer_stream(gamefile, (char *)buf, 4 * 7);
+#endif /* OS_MEGA65 */
   if (res != 4 * 7) {
     fatal_error("The game file header is too short.");
   }
@@ -98,6 +105,16 @@ void setup_vm()
   /* Allocate main memory and the stack. This is where memory allocation
      errors are most likely to occur. */
   endmem = origendmem;
+#ifdef OS_MEGA65
+  /* Main memory is attic RAM, there is nothing to allocate. */
+  if (origendmem > GAME_MEM_MAX) {
+    fatal_error("The game's memory is too large for attic RAM.");
+  }
+  stack = (unsigned char *)glulx_malloc(stacksize);
+  if (!stack) {
+    fatal_error("Unable to allocate Glulx stack space.");
+  }
+#else /* OS_MEGA65 */
   memmap = (unsigned char *)glulx_malloc(origendmem);
   if (!memmap) {
     fatal_error("Unable to allocate Glulx memory space.");
@@ -108,6 +125,7 @@ void setup_vm()
     memmap = NULL;
     fatal_error("Unable to allocate Glulx stack space.");
   }
+#endif /* OS_MEGA65 */
   stringtable = 0;
 
   /* Initialize various other things in the terp. */
@@ -136,10 +154,12 @@ void finalize_vm()
 {
   stream_set_table(0);
 
+#ifndef OS_MEGA65
   if (memmap) {
     glulx_free(memmap);
     memmap = NULL;
   }
+#endif /* OS_MEGA65 */
   if (stack) {
     glulx_free(stack);
     stack = NULL;
@@ -156,9 +176,11 @@ void finalize_vm()
 void vm_restart()
 {
   glui32 lx;
+#ifndef OS_MEGA65
   int res;
   int bufpos;
   char buf[0x100];
+#endif /* OS_MEGA65 */
 
   /* Deactivate the heap (if it was active). */
   heap_clear();
@@ -168,6 +190,20 @@ void vm_restart()
   if (lx)
     fatal_error("Memory could not be reset to its original size.");
 
+#ifdef OS_MEGA65
+  /* Copy main memory from the loaded game file, leaving the protected
+     range alone. */
+  {
+    glui32 skipstart = endgamefile, skipend = endgamefile;
+    if (protectstart < protectend) {
+      skipstart = (protectstart < endgamefile) ? protectstart : endgamefile;
+      skipend = (protectend < endgamefile) ? protectend : endgamefile;
+    }
+    dma_copy(GAME_IMAGE, GAME_MEM, skipstart);
+    dma_copy(GAME_IMAGE + skipend, GAME_MEM + skipend, endgamefile - skipend);
+    dma_fill(GAME_MEM + endgamefile, 0, origendmem - endgamefile);
+  }
+#else /* OS_MEGA65 */
   /* Load in all of main memory. We do this in 256-byte chunks, because
      why rely on OS stream buffering? */
   glk_stream_set_position(gamefile, gamefile_start, seekmode_Start);
@@ -190,6 +226,7 @@ void vm_restart()
   for (lx=endgamefile; lx<origendmem; lx++) {
     memmap[lx] = 0;
   }
+#endif /* OS_MEGA65 */
 
   /* Reset all the registers */
   stackptr = 0;
@@ -218,8 +255,10 @@ void vm_restart()
 */
 glui32 change_memsize(glui32 newlen, int internal)
 {
+#ifndef OS_MEGA65
   long lx;
   unsigned char *newmemmap;
+#endif /* OS_MEGA65 */
 
   if (newlen == endmem)
     return 0;
@@ -237,6 +276,12 @@ glui32 change_memsize(glui32 newlen, int internal)
   if (newlen & 0xFF)
     fatal_error("Can only resize Glulx memory space to a 256-byte boundary.");
   
+#ifdef OS_MEGA65
+  if (newlen > GAME_MEM_MAX)
+    return 1;
+  if (newlen > endmem)
+    dma_fill(GAME_MEM + endmem, 0, newlen - endmem);
+#else /* OS_MEGA65 */
   newmemmap = (unsigned char *)glulx_realloc(memmap, newlen);
   if (!newmemmap) {
     /* The old block is still in place, unchanged. */
@@ -249,6 +294,7 @@ glui32 change_memsize(glui32 newlen, int internal)
       memmap[lx] = 0;
     }
   }
+#endif /* OS_MEGA65 */
 
   endmem = newlen;
 

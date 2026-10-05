@@ -76,7 +76,9 @@ typedef int16_t glsi16;
    (real) memory. This saves some memory, but slows down save/restore/undo
    operations, which will have to read the original state off disk
    every time. */
+#ifndef OS_MEGA65
 #define SERIALIZE_CACHE_RAM (1)
+#endif /* OS_MEGA65 */
 
 /* Some macros to read and write integers to memory, always in big-endian
    format. */
@@ -112,12 +114,26 @@ typedef int16_t glsi16;
 #define VerifyStk(adr, ln) (0)
 #endif /* VERIFY_MEMORY_ACCESS */
 
+#ifdef OS_MEGA65
+/* Main memory is in attic RAM; see mega65.h. */
+#include "mega65.h"
+#define Mem1(adr)  (Verify(adr, 1), mem_read1(adr))
+#define Mem2(adr)  (Verify(adr, 2), mem_read2(adr))
+#define Mem4(adr)  (Verify(adr, 4), mem_read4(adr))
+/* The writes end in a value, as the upstream Write* macros do: glkop.c
+   puts them in one arm of a ?: whose other arm is a glui32, and a void
+   arm there crashes cc6502 ("internal error: labeling failed"). */
+#define MemW1(adr, vl)  (VerifyW(adr, 1), mem_write1((adr), (vl)), 0)
+#define MemW2(adr, vl)  (VerifyW(adr, 2), mem_write2((adr), (vl)), 0)
+#define MemW4(adr, vl)  (VerifyW(adr, 4), mem_write4((adr), (vl)), 0)
+#else /* OS_MEGA65 */
 #define Mem1(adr)  (Verify(adr, 1), Read1(memmap+(adr)))
 #define Mem2(adr)  (Verify(adr, 2), Read2(memmap+(adr)))
 #define Mem4(adr)  (Verify(adr, 4), Read4(memmap+(adr)))
 #define MemW1(adr, vl)  (VerifyW(adr, 1), Write1(memmap+(adr), (vl)))
 #define MemW2(adr, vl)  (VerifyW(adr, 2), Write2(memmap+(adr), (vl)))
 #define MemW4(adr, vl)  (VerifyW(adr, 4), Write4(memmap+(adr), (vl)))
+#endif /* OS_MEGA65 */
 
 /* Macros to access values on the stack. These *must* be used 
    with proper alignment! (That is, Stk4 and StkW4 must take 
@@ -171,7 +187,9 @@ extern strid_t gamefile;
 extern glui32 gamefile_start, gamefile_len;
 extern char *init_err, *init_err2;
 
+#ifndef OS_MEGA65
 extern unsigned char *memmap;
+#endif /* OS_MEGA65 */
 extern unsigned char *stack;
 
 extern glui32 ramstart;

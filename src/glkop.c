@@ -1442,7 +1442,13 @@ static long glulxe_array_locate(void *array, glui32 len,
 
   if (!elemsize || array == NULL) {
     *elemsizeref = 0; /* No need to save the array separately */
+#ifdef OS_MEGA65
+    /* Main memory is not in the CPU address space. */
+    fatal_error("Unable to locate an array in main memory.");
+    return 0;
+#else /* OS_MEGA65 */
     return (unsigned char *)array - memmap;
+#endif /* OS_MEGA65 */
   }
   
   for (aptr=(&arrays); (*aptr); aptr=(&((*aptr)->next))) {
@@ -1475,8 +1481,14 @@ static gidispatch_rock_t glulxe_array_restore(long bufkey,
     elemsize = 4;
 
   if (!elemsize) {
+#ifdef OS_MEGA65
+    /* Main memory is not in the CPU address space. */
+    fatal_error("Unable to restore an array in main memory.");
+    *arrayref = NULL;
+#else /* OS_MEGA65 */
     unsigned char *buf = memmap + bufkey;
     *arrayref = buf;
+#endif /* OS_MEGA65 */
     rock.ptr = NULL;
     return rock;
   }
@@ -1509,11 +1521,17 @@ static char *get_game_id()
   static char buf[2*64+2];
   int ix, jx;
 
+#ifndef OS_MEGA65
   if (!memmap)
     return NULL;
+#endif /* OS_MEGA65 */
 
   for (ix=0, jx=0; ix<64; ix++) {
+#ifdef OS_MEGA65
+    char ch = Mem1(ix);
+#else /* OS_MEGA65 */
     char ch = memmap[ix];
+#endif /* OS_MEGA65 */
     int val = ((ch >> 4) & 0x0F);
     buf[jx++] = ((val < 10) ? (val + '0') : (val + 'A' - 10));
     val = (ch & 0x0F);
